@@ -1,4 +1,4 @@
-name: Windows Build
+name: Unity Windows Build with Single EXE and S3 Upload
 
 on:
   push:
@@ -65,7 +65,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SOURCE_DIR: "Build/Windows"
-          DEST_DIR: "releases"
+          DEST_DIR: ""  # Upload directly to the root of the bucket
 
       - name: Revoke Unity Pro License
         run: |
