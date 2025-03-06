@@ -25,8 +25,14 @@ jobs:
             "password" = "${{ secrets.UNITY_PASSWORD }}"
             "grant_type" = "password"
           } | ConvertTo-Json
-          $response = Invoke-RestMethod -Uri "https://id.unity.com/api/v1/oauth/token" -Method Post -Headers $headers -Body $body
-          
+          try {
+            $response = Invoke-RestMethod -Uri "https://id.unity.com/api/v1/oauth/token" -Method Post -Headers $headers -Body $body
+            Write-Host "Response: $($response | ConvertTo-Json)"
+          } catch {
+            Write-Host "Error: $($_.Exception.Message)"
+            exit 1
+          }
+
           if (-not $response) { 
             Write-Host "Failed to login to Unity Admin" 
             exit 1
@@ -40,8 +46,15 @@ jobs:
           $body = @{
             "organizationId" = "${{ secrets.UNITY_ORG_ID }}"
           } | ConvertTo-Json
-          Invoke-RestMethod -Uri "https://services.unity.com/api/users/${{ secrets.UNITY_USER_EMAIL }}/assign-license" -Method Post -Headers $headers -Body $body
+          try {
+            $assignResponse = Invoke-RestMethod -Uri "https://services.unity.com/api/users/${{ secrets.UNITY_USER_EMAIL }}/assign-license" -Method Post -Headers $headers -Body $body
+            Write-Host "License Assignment Response: $($assignResponse | ConvertTo-Json)"
+          } catch {
+            Write-Host "Error assigning license: $($_.Exception.Message)"
+            exit 1
+          }
         shell: pwsh
+
 
       - name: Activate Unity License
         run: |
