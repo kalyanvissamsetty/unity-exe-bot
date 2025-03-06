@@ -38,7 +38,7 @@ jobs:
             exit 1
           }
 
-          echo "Assigning Unity Pro License to ${{ secrets.UNITY_USER_EMAIL }}..."
+          echo "Successfully logged in, assigning Unity Pro License..."
           $headers = @{
             "Authorization" = "Bearer $($response.access_token)"
             "Content-Type" = "application/json"
@@ -46,6 +46,7 @@ jobs:
           $body = @{
             "organizationId" = "${{ secrets.UNITY_ORG_ID }}"
           } | ConvertTo-Json
+
           try {
             $assignResponse = Invoke-RestMethod -Uri "https://services.unity.com/api/users/${{ secrets.UNITY_USER_EMAIL }}/assign-license" -Method Post -Headers $headers -Body $body
             Write-Host "License Assignment Response: $($assignResponse | ConvertTo-Json)"
