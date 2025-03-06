@@ -3,7 +3,7 @@ name: Unity Windows Build with Single EXE and S3 Upload
 on:
   push:
     branches:
-      - development
+      - main
 
 jobs:
   build:
