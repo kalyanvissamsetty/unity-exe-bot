@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
+  workflow_dispatch: # This enables manual triggering of the workflow
 
 jobs:
   build:
@@ -17,18 +17,30 @@ jobs:
       - name: Assign Unity Pro License
         run: |
           echo "Logging into Unity Admin..."
-          curl -X POST "https://id.unity.com/api/v1/oauth/token" \
-          -H "Content-Type: application/json" \
-          -d "{\"username\": \"${{ secrets.UNITY_EMAIL }}\", \"password\": \"${{ secrets.UNITY_PASSWORD }}\", \"grant_type\": \"password\"}" \
-          -o unity_auth.json
+          $headers = @{
+            "Content-Type" = "application/json"
+          }
+          $body = @{
+            "username" = "${{ secrets.UNITY_EMAIL }}"
+            "password" = "${{ secrets.UNITY_PASSWORD }}"
+            "grant_type" = "password"
+          } | ConvertTo-Json
+          $response = Invoke-RestMethod -Uri "https://id.unity.com/api/v1/oauth/token" -Method Post -Headers $headers -Body $body
           
-          if (-not $?) { echo "Failed to login to Unity Admin" ; exit 1 }
-          
+          if (-not $response) { 
+            Write-Host "Failed to login to Unity Admin" 
+            exit 1
+          }
+
           echo "Assigning Unity Pro License to ${{ secrets.UNITY_USER_EMAIL }}..."
-          curl -X POST "https://services.unity.com/api/users/${{ secrets.UNITY_USER_EMAIL }}/assign-license" \
-          -H "Authorization: Bearer $(jq -r .access_token unity_auth.json)" \
-          -H "Content-Type: application/json" \
-          -d "{\"organizationId\": \"${{ secrets.UNITY_ORG_ID }}\"}"
+          $headers = @{
+            "Authorization" = "Bearer $($response.access_token)"
+            "Content-Type" = "application/json"
+          }
+          $body = @{
+            "organizationId" = "${{ secrets.UNITY_ORG_ID }}"
+          } | ConvertTo-Json
+          Invoke-RestMethod -Uri "https://services.unity.com/api/users/${{ secrets.UNITY_USER_EMAIL }}/assign-license" -Method Post -Headers $headers -Body $body
         shell: pwsh
 
       - name: Activate Unity License
@@ -71,6 +83,8 @@ jobs:
       - name: Revoke Unity Pro License
         run: |
           echo "Revoking Unity Pro License from ${{ secrets.UNITY_USER_EMAIL }}..."
-          curl -X POST "https://services.unity.com/api/users/${{ secrets.UNITY_USER_EMAIL }}/revoke-license" \
-          -H "Authorization: Bearer $(jq -r .access_token unity_auth.json)"
+          $headers = @{
+            "Authorization" = "Bearer $($response.access_token)"
+          }
+          Invoke-RestMethod -Uri "https://services.unity.com/api/users/${{ secrets.UNITY_USER_EMAIL }}/revoke-license" -Method Post -Headers $headers
         shell: pwsh
