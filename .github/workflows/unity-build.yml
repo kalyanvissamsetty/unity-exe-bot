@@ -3,7 +3,7 @@ name: Unity Windows Build with Single EXE and S3 Upload
 on:
   push:
     branches:
-      - main
+      - development
 
 jobs:
   build:
@@ -21,10 +21,7 @@ jobs:
           -d "{\"username\": \"${{ secrets.UNITY_EMAIL }}\", \"password\": \"${{ secrets.UNITY_PASSWORD }}\", \"grant_type\": \"password\"}" \
           -o unity_auth.json
           
-          if (-not $?) { 
-            echo "Failed to login to Unity Admin"; 
-            exit 1; 
-          }
+          if (-not $?) { echo "Failed to login to Unity Admin" ; exit 1 }
           
           echo "Assigning Unity Pro License to ${{ secrets.UNITY_USER_EMAIL }}..."
           curl -X POST "https://services.unity.com/api/users/${{ secrets.UNITY_USER_EMAIL }}/assign-license" \
@@ -37,29 +34,13 @@ jobs:
         run: |
           echo "Activating Unity license..."
           Unity -batchmode -quit -logfile ./UnityLicense.log -serial $(cat unity_serial.txt)
-          if ($?) { echo "Unity license activated successfully"; } else { echo "Unity license activation failed"; exit 1; }
         shell: cmd
 
       - name: Build Unity Project
         run: |
           echo "Starting Unity build..."
-          Unity -batchmode -quit -logfile ./UnityBuild.log -projectPath . -buildWindows64Player "Build/MyUnityApp.exe"
-          if ($?) { 
-            echo "Unity build completed successfully"; 
-          } else { 
-            echo "Unity build failed"; 
-            exit 1; 
-          }
-          echo "Copying icon file..."
-          mkdir -p ./Build/Windows  # Create Windows folder if it doesn't exist
-          cp -r ./Assets/Icons/logo.ico ./Build/Windows/logo.ico
-          if ($?) { 
-            echo "Icon copied successfully"; 
-          } else { 
-            echo "Failed to copy icon"; 
-            exit 1; 
-          }
-        shell: bash
+          Unity -batchmode -quit -logfile ./UnityBuild.log -projectPath . -buildWindows64Player "Build/Windows/MyApp.exe"
+        shell: cmd
 
       - name: Convert Build to Single EXE using Inno Setup
         run: |
@@ -69,16 +50,10 @@ jobs:
           echo "DefaultDirName={pf}\MyUnityApp" >> MyApp.iss
           echo "OutputDir=Build/Windows" >> MyApp.iss
           echo "OutputBaseFilename=MyUnityApp" >> MyApp.iss
-          echo "SetupIconFile=Build/Windows/logo.ico" >> MyApp.iss
+          echo "SetupIconFile=Build/Windows/MyApp.ico" >> MyApp.iss
           echo "[Files]" >> MyApp.iss
-          echo "Source: \"Build/*\"; DestDir: \"{app}\"; Flags: ignoreversion" >> MyApp.iss
+          echo "Source: \"Build/Windows/*\"; DestDir: \"{app}\"; Flags: ignoreversion" >> MyApp.iss
           "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" MyApp.iss
-          if ($?) { 
-            echo "Inno Setup conversion completed successfully"; 
-          } else { 
-            echo "Inno Setup conversion failed"; 
-            exit 1; 
-          }
         shell: cmd
 
       - name: Upload to S3
@@ -90,36 +65,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SOURCE_DIR: "Build/Windows"
-          DEST_DIR: "releases"
-        continue-on-error: true  # Continue on error to avoid stopping the workflow
-        run: |
-          echo "Uploading to S3..."
-          if [ -d "$SOURCE_DIR" ]; then
-            echo "Found build directory: $SOURCE_DIR"
-            aws s3 sync $SOURCE_DIR s3://$AWS_S3_BUCKET/$DEST_DIR --acl public-read
-            if [ $? -eq 0 ]; then
-              echo "Build uploaded successfully to S3."
-            else
-              echo "S3 upload failed."
-              exit 1
-            fi
-          else
-            echo "Build directory not found: $SOURCE_DIR"
-            exit 1
-          fi
-        shell: bash
-
-      - name: Send Email Notification
-        run: |
-          echo "Build completed! Download at: https://s3.amazonaws.com/${{ secrets.AWS_BUCKET_NAME }}/releases/MyUnityApp.exe" > email_body.txt
-          echo "Sending email notifications..."
-          curl -X POST "https://api.mailgun.net/v3/YOUR_DOMAIN/messages" \
-          -u "api:${{ secrets.MAILGUN_API_KEY }}" \
-          -F from="Unity Build System <builds@yourdomain.com>" \
-          -F to="${{ secrets.NOTIFY_EMAILS }}" \
-          -F subject="New Unity Build Ready" \
-          -F text="$(cat email_body.txt)"
-        shell: bash
+          DEST_DIR: ""  # Upload directly to the root of the bucket
 
       - name: Revoke Unity Pro License
         run: |
